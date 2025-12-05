@@ -24,32 +24,25 @@ internal sealed class CachePlayground
     // Main menu: pick which caching strategy you want to try.
     public async Task RunAsync()
     {
-        while (true)
+        var keepGoing = true;
+
+        while (keepGoing)
         {
-            Console.Clear();
-            ConsoleTheme.WriteTitle("Redis caching playground");
-            Console.WriteLine("Choose caching strategy to explore:");
-            for (int i = 0; i < _strategies.Count; i++)
-            {
-                ConsoleTheme.WriteInfo($"[{i + 1}] {_strategies[i].Name}");
-            }
-            ConsoleTheme.WriteInfo("[0] Exit");
-            ConsoleTheme.WritePrompt("> ");
-
-            var input = Console.ReadLine();
-            if (input == "0" || string.IsNullOrWhiteSpace(input))
-            {
-                break;
-            }
-
-            if (int.TryParse(input, out var option) && option > 0 && option <= _strategies.Count)
-            {
-                await RunStrategyAsync(_strategies[option - 1]);
-            }
-            else
-            {
-                Console.WriteLine("Unknown option. Please try again.");
-            }
+            keepGoing = await ConsoleMenu.RunAsync(
+                title: "Redis caching playground",
+                subtitle: "Pick a pattern, then try set → get → check to see how the cache behaves.",
+                options: _strategies
+                    .Select(
+                        (strategy, i) =>
+                            new ConsoleMenu.Option(
+                                Key: (i + 1).ToString(),
+                                Label: strategy.Name,
+                                Action: () => RunStrategyAsync(strategy)
+                            )
+                    )
+                    .ToList(),
+                exitLabel: "Exit"
+            );
         }
 
         Console.WriteLine("See you next time!");
@@ -58,44 +51,29 @@ internal sealed class CachePlayground
     // Submenu for a single strategy: set/get/check using the same key.
     private async Task RunStrategyAsync(ICacheStrategy strategy)
     {
-        var keepGoing = true;
-
-        while (keepGoing)
-        {
-            Console.Clear();
-            ConsoleTheme.WriteTitle($"{strategy.Name}");
-            ConsoleTheme.WriteMuted($"Working key: {strategy.Key}");
-            Console.WriteLine();
-            ConsoleTheme.WriteInfo("[1] Set cache");
-            ConsoleTheme.WriteInfo("[2] Get cache");
-            ConsoleTheme.WriteInfo("[3] Check cache");
-            ConsoleTheme.WriteInfo("[0] Back to strategies");
-            ConsoleTheme.WritePrompt("> ");
-
-            var input = Console.ReadLine();
-            switch (input)
-            {
-                case "1":
+        await ConsoleMenu.RunAsync(
+            title: strategy.Name,
+            subtitle: $"Working key: {strategy.Key}\nStart with set, then get/check to see TTLs.",
+            options:
+            [
+                new ConsoleMenu.Option("1", "Set cache", async () =>
+                {
                     await strategy.SetAsync();
                     ConsoleTheme.Pause();
-                    break;
-                case "2":
+                }),
+                new ConsoleMenu.Option("2", "Get cache", async () =>
+                {
                     await strategy.GetAsync();
                     ConsoleTheme.Pause();
-                    break;
-                case "3":
+                }),
+                new ConsoleMenu.Option("3", "Check cache", async () =>
+                {
                     await strategy.CheckAsync();
                     ConsoleTheme.Pause();
-                    break;
-                case "0":
-                    keepGoing = false;
-                    break;
-                default:
-                    Console.WriteLine("Unknown option. Please try again.");
-                    ConsoleTheme.Pause();
-                    break;
-            }
-        }
+                }),
+            ],
+            exitLabel: "Back to strategies"
+        );
     }
 }
 
@@ -321,5 +299,55 @@ internal static class ConsoleTheme
             Console.Write(text);
         }
         Console.ForegroundColor = previous;
+    }
+}
+
+// Tiny menu helper to keep the console workflow consistent.
+internal static class ConsoleMenu
+{
+    internal sealed record Option(string Key, string Label, Func<Task> Action);
+
+    public static async Task<bool> RunAsync(
+        string title,
+        string? subtitle,
+        IReadOnlyList<Option> options,
+        string exitLabel)
+    {
+        while (true)
+        {
+            Console.Clear();
+            ConsoleTheme.WriteTitle(title);
+            if (!string.IsNullOrWhiteSpace(subtitle))
+            {
+                ConsoleTheme.WriteMuted(subtitle);
+                Console.WriteLine();
+            }
+
+            foreach (var option in options)
+            {
+                ConsoleTheme.WriteInfo($"[{option.Key}] {option.Label}");
+            }
+            ConsoleTheme.WriteInfo($"[0] {exitLabel}");
+            ConsoleTheme.WritePrompt("> ");
+
+            var input = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(input) || input == "0")
+            {
+                return false;
+            }
+
+            var match = options.FirstOrDefault(
+                o => string.Equals(o.Key, input.Trim(), StringComparison.OrdinalIgnoreCase)
+            );
+
+            if (match is null)
+            {
+                Console.WriteLine("Unknown option. Please try again.");
+                ConsoleTheme.Pause();
+                continue;
+            }
+
+            await match.Action();
+        }
     }
 }
