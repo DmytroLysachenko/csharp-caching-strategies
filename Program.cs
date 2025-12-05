@@ -56,21 +56,33 @@ internal sealed class CachePlayground
             subtitle: $"Working key: {strategy.Key}\nStart with set, then get/check to see TTLs.",
             options:
             [
-                new ConsoleMenu.Option("1", "Set cache", async () =>
-                {
-                    await strategy.SetAsync();
-                    ConsoleTheme.Pause();
-                }),
-                new ConsoleMenu.Option("2", "Get cache", async () =>
-                {
-                    await strategy.GetAsync();
-                    ConsoleTheme.Pause();
-                }),
-                new ConsoleMenu.Option("3", "Check cache", async () =>
-                {
-                    await strategy.CheckAsync();
-                    ConsoleTheme.Pause();
-                }),
+                new ConsoleMenu.Option(
+                    "1",
+                    "Set cache",
+                    async () =>
+                    {
+                        await strategy.SetAsync();
+                        ConsoleTheme.Pause();
+                    }
+                ),
+                new ConsoleMenu.Option(
+                    "2",
+                    "Get cache",
+                    async () =>
+                    {
+                        await strategy.GetAsync();
+                        ConsoleTheme.Pause();
+                    }
+                ),
+                new ConsoleMenu.Option(
+                    "3",
+                    "Check cache",
+                    async () =>
+                    {
+                        await strategy.CheckAsync();
+                        ConsoleTheme.Pause();
+                    }
+                ),
             ],
             exitLabel: "Back to strategies"
         );
@@ -82,8 +94,8 @@ internal interface ICacheStrategy
 {
     string Name { get; }
     string Key { get; }
-    Task SetAsync();   // Write or refresh the cache.
-    Task GetAsync();   // Read the cached value (may refresh TTL depending on strategy).
+    Task SetAsync(); // Write or refresh the cache.
+    Task GetAsync(); // Read the cached value (may refresh TTL depending on strategy).
     Task CheckAsync(); // Inspect current value/TTL without changing it.
 }
 
@@ -223,7 +235,11 @@ internal sealed class DependentCache : ICacheStrategy
             return;
         }
 
-        if (!parentVersion.HasValue || !childVersion.HasValue || childVersion != parentVersion.Value)
+        if (
+            !parentVersion.HasValue
+            || !childVersion.HasValue
+            || childVersion != parentVersion.Value
+        )
         {
             await _db.KeyDeleteAsync(ChildKey);
             Console.WriteLine("Parent changed. Child invalidated and removed.");
@@ -311,7 +327,8 @@ internal static class ConsoleMenu
         string title,
         string? subtitle,
         IReadOnlyList<Option> options,
-        string exitLabel)
+        string exitLabel
+    )
     {
         while (true)
         {
@@ -336,8 +353,8 @@ internal static class ConsoleMenu
                 return false;
             }
 
-            var match = options.FirstOrDefault(
-                o => string.Equals(o.Key, input.Trim(), StringComparison.OrdinalIgnoreCase)
+            var match = options.FirstOrDefault(o =>
+                string.Equals(o.Key, input.Trim(), StringComparison.OrdinalIgnoreCase)
             );
 
             if (match is null)
